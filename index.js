@@ -2,7 +2,7 @@ require('dotenv').config(); // Load environment variables
 
 // Remove "sk-" prefix if present so that the key is in the correct format
 const rawKey = process.env.GEMINI_API_KEY;
-const GEMINI_API_KEY = rawKey.startsWith('sk-') ? rawKey.substring(3) : rawKey;
+const GEMINI_API_KEY = rawKey && rawKey.startsWith('sk-') ? rawKey.substring(3) : rawKey;
 
 const express = require('express');
 const http = require('http');
@@ -69,7 +69,7 @@ io.on('connection', (socket) => {
   socket.on('aiCorrection', async (data) => {
     const { code, language } = data;
     try {
-      // Updated prompt: instruct AI to return only the corrected code without any commentary.
+      // Instruct AI to return only the corrected code without any commentary.
       const response = await axios.post(
         `${GEMINI_API_ENDPOINT}?key=${GEMINI_API_KEY}`,
         {
@@ -99,16 +99,17 @@ io.on('connection', (socket) => {
 
     if (language === 'javascript') {
       filename = `code-${id}.js`;
-      fs.writeFileSync(filename, code);
       command = 'node';
       args = [filename];
     } else if (language === 'python') {
       filename = `code-${id}.py`;
-      fs.writeFileSync(filename, code);
       command = 'python3';
       args = [filename];
+    } else if (language === 'swift') {
+      filename = `code-${id}.swift`;
+      command = 'swift';
+      args = [filename];
     } else if (language === 'c') {
-      // For C, first compile then run the binary
       filename = `code-${id}.c`;
       const executable = `code-${id}`;
       fs.writeFileSync(filename, code);
@@ -120,24 +121,17 @@ io.on('connection', (socket) => {
       compile.on('close', (compileExitCode) => {
         if (compileExitCode !== 0) {
           socket.emit('runtimeErrors', `Compilation Error:\n${compileError}`);
-          // Clean up source file
           fs.unlink(filename, () => {});
         } else {
-          // Run the compiled executable
           const child = spawn(`./${executable}`);
           let output = '';
           let errOutput = '';
-          child.stdout.on('data', (data) => {
-            output += data.toString();
-          });
-          child.stderr.on('data', (data) => {
-            errOutput += data.toString();
-          });
+          child.stdout.on('data', (data) => { output += data.toString(); });
+          child.stderr.on('data', (data) => { errOutput += data.toString(); });
           child.on('close', () => {
             let combined = output;
             if (errOutput) combined += `\nErrors:\n${errOutput}`;
             socket.emit('runtimeErrors', combined);
-            // Clean up both source and executable
             fs.unlink(filename, () => {});
             fs.unlink(executable, () => {});
           });
@@ -147,25 +141,119 @@ io.on('connection', (socket) => {
           }
         }
       });
-      return; // Exit handler for C after starting compile process
+      return;
+    } else if (language === 'csharp') {
+      filename = `code-${id}.cs`;
+      const executable = `code-${id}.exe`;
+      fs.writeFileSync(filename, code);
+      const compile = spawn('mcs', [filename, '-out:' + executable]);
+      let compileError = '';
+      compile.stderr.on('data', (data) => { compileError += data.toString(); });
+      compile.on('close', (compileExitCode) => {
+        if (compileExitCode !== 0) {
+          socket.emit('runtimeErrors', `Compilation Error:\n${compileError}`);
+          fs.unlink(filename, () => {});
+        } else {
+          const child = spawn('mono', [executable]);
+          let output = '';
+          let errOutput = '';
+          child.stdout.on('data', (data) => { output += data.toString(); });
+          child.stderr.on('data', (data) => { errOutput += data.toString(); });
+          child.on('close', () => {
+            let combined = output;
+            if (errOutput) combined += `\nErrors:\n${errOutput}`;
+            socket.emit('runtimeErrors', combined);
+            fs.unlink(filename, () => {});
+            fs.unlink(executable, () => {});
+          });
+          if (input) {
+            child.stdin.write(input);
+            child.stdin.end();
+          }
+        }
+      });
+      return;
+    } else if (language === 'java') {
+      // For Java, expect the code to contain a public class "Main"
+      filename = `Main.java`;
+      fs.writeFileSync(filename, code);
+      const compile = spawn('javac', [filename]);
+      let compileError = '';
+      compile.stderr.on('data', (data) => { compileError += data.toString(); });
+      compile.on('close', (compileExitCode) => {
+        if (compileExitCode !== 0) {
+          socket.emit('runtimeErrors', `Compilation Error:\n${compileError}`);
+          fs.unlink(filename, () => {});
+        } else {
+          const child = spawn('java', ['Main']);
+          let output = '';
+          let errOutput = '';
+          child.stdout.on('data', (data) => { output += data.toString(); });
+          child.stderr.on('data', (data) => { errOutput += data.toString(); });
+          child.on('close', () => {
+            let combined = output;
+            if (errOutput) combined += `\nErrors:\n${errOutput}`;
+            socket.emit('runtimeErrors', combined);
+            fs.unlink(filename, () => {});
+            fs.unlink('Main.class', () => {});
+          });
+          if (input) {
+            child.stdin.write(input);
+            child.stdin.end();
+          }
+        }
+      });
+      return;
+    } else if (language === 'cpp') {
+      filename = `code-${id}.cpp`;
+      const executable = `code-${id}`;
+      fs.writeFileSync(filename, code);
+      const compile = spawn('g++', [filename, '-o', executable]);
+      let compileError = '';
+      compile.stderr.on('data', (data) => {
+        compileError += data.toString();
+      });
+      compile.on('close', (compileExitCode) => {
+        if (compileExitCode !== 0) {
+          socket.emit('runtimeErrors', `Compilation Error:\n${compileError}`);
+          fs.unlink(filename, () => {});
+        } else {
+          const child = spawn(`./${executable}`);
+          let output = '';
+          let errOutput = '';
+          child.stdout.on('data', (data) => { output += data.toString(); });
+          child.stderr.on('data', (data) => { errOutput += data.toString(); });
+          child.on('close', () => {
+            let combined = output;
+            if (errOutput) combined += `\nErrors:\n${errOutput}`;
+            socket.emit('runtimeErrors', combined);
+            fs.unlink(filename, () => {});
+            fs.unlink(executable, () => {});
+          });
+          if (input) {
+            child.stdin.write(input);
+            child.stdin.end();
+          }
+        }
+      });
+      return;
+    } else {
+      socket.emit('runtimeErrors', "Unsupported language.");
+      return;
     }
 
-    // For JavaScript and Python:
+    // For interpreted languages (JavaScript, Python, Swift):
     fs.writeFileSync(filename, code);
     const child = spawn(command, args);
     let output = '';
     let errOutput = '';
-    child.stdout.on('data', (data) => {
-      output += data.toString();
-    });
-    child.stderr.on('data', (data) => {
-      errOutput += data.toString();
-    });
+    child.stdout.on('data', (data) => { output += data.toString(); });
+    child.stderr.on('data', (data) => { errOutput += data.toString(); });
     child.on('close', () => {
       let combined = output;
       if (errOutput) combined += `\nErrors:\n${errOutput}`;
       socket.emit('runtimeErrors', combined);
-      fs.unlink(filename, () => {}); // Clean up the temporary file
+      fs.unlink(filename, () => {});
     });
     if (input) {
       child.stdin.write(input);
@@ -173,7 +261,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // NEW: Handler for sending code to specific users
+  // Handler for sending code to specific users
   socket.on('sendCode', (data) => {
     const { code, recipients } = data;
     const sender = socket.username || "Anonymous";

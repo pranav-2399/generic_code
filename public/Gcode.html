@@ -143,7 +143,7 @@
     /* NEW: Styles for the Send Code container */
     #sendCodeContainer {
       position: absolute;
-      top: 40px; /* Adjust as needed */
+      top: 40px;
       right: 10px;
       background: #222;
       border: 1px solid #444;
@@ -188,7 +188,7 @@
       font-family: 'Roboto Mono', monospace;
       font-size: 14px;
     }
-    /* Tab Header for switching between Code and Output */
+    /* Tab Header for switching between Code, Output, and Received Code */
     #tabHeader {
       display: flex;
       border-bottom: 1px solid #444;
@@ -213,7 +213,7 @@
       flex: 1;
       overflow: hidden;
     }
-    #codeTab, #outputTab {
+    #codeTab, #outputTab, #receivedCodeTab {
       position: absolute;
       top: 0;
       left: 0;
@@ -238,6 +238,50 @@
       font-size: 14px;
       overflow-y: auto;
       height: 100%;
+    }
+    /* Received Code Tab Styles */
+    #receivedCodeHeader {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 5px;
+      background: #222;
+      position: relative;
+    }
+    #receivedCodeContent {
+      background: #111;
+      padding: 10px;
+      border-radius: 4px;
+      overflow: auto;
+      height: calc(100% - 40px);
+    }
+    /* Style for the Copy Button - matching the theme */
+    #copyReceivedCodeButton {
+      padding: 6px 12px;
+      cursor: pointer;
+      border-radius: 4px;
+      border: none;
+      font-size: 14px;
+      background: #333;
+      color: #fff;
+      transition: background 0.3s;
+    }
+    #copyReceivedCodeButton:hover {
+      background: #444;
+    }
+    /* Style for the Copy Notification */
+    .copy-notification {
+      position: absolute;
+      top: 10px;
+      right: 20px;
+      background: #333;
+      color: #fff;
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      pointer-events: none;
     }
     /* Sidebar (User List + Chat) */
     #sidebar {
@@ -321,6 +365,10 @@
           <option value="javascript">JavaScript</option>
           <option value="python">Python</option>
           <option value="c">C</option>
+          <option value="csharp">C#</option>
+          <option value="java">Java</option>
+          <option value="swift">Swift</option>
+          <option value="cpp">C++</option>
         </select>
         <button id="aiSuggestionButton">Get AI Suggestion</button>
         <button id="aiCorrectionButton">Code Correction</button>
@@ -328,7 +376,8 @@
         <button id="sendCodeButton">Send Code</button>
         <!-- Container for selecting recipients -->
         <div id="sendCodeContainer">
-          <select id="sendUserSelect" multiple></select>
+          <!-- Added size attribute for multiple selections -->
+          <select id="sendUserSelect" multiple size="5"></select>
           <button id="confirmSendCodeButton">Send</button>
         </div>
       </div>
@@ -342,6 +391,7 @@
       <div id="tabHeader">
         <button id="tabCode" class="active">Code</button>
         <button id="tabOutput">Output</button>
+        <button id="tabReceivedCode">Received Code</button>
       </div>
       <!-- Tab Content -->
       <div id="tabContent">
@@ -350,6 +400,14 @@
         </div>
         <div id="outputTab" style="display: none;">
           <pre id="outputSection"></pre>
+        </div>
+        <div id="receivedCodeTab" style="display: none;">
+          <div id="receivedCodeHeader">
+            <span id="receivedCodeSender"></span>
+            <button id="copyReceivedCodeButton">Copy</button>
+            <span id="copyNotification" class="copy-notification">Copied!</span>
+          </div>
+          <pre id="receivedCodeContent"></pre>
         </div>
       </div>
     </div>
@@ -384,13 +442,16 @@
       }
     }
 
-    // Initialize CodeMirror editor before using it in event listeners
+    // Initialize CodeMirror editor with auto-indentation
     const editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
       mode: "javascript",
       theme: "monokai",
       lineNumbers: true,
       gutters: ["CodeMirror-lint-markers"],
       lint: true,
+      smartIndent: true,
+      indentUnit: 4,
+      indentWithTabs: true
     });
 
     // Update CodeMirror mode when language selection changes
@@ -403,6 +464,14 @@
         editor.setOption("mode", "python");
       } else if (lang === "c") {
         editor.setOption("mode", "text/x-csrc");
+      } else if (lang === "csharp") {
+        editor.setOption("mode", "text/x-csharp");
+      } else if (lang === "java") {
+        editor.setOption("mode", "text/x-java");
+      } else if (lang === "swift") {
+        editor.setOption("mode", "text/x-swift");
+      } else if (lang === "cpp") {
+        editor.setOption("mode", "text/x-c++src");
       }
     });
 
@@ -469,7 +538,12 @@
       userList.innerHTML = "";
       users.forEach(function(user) {
         const li = document.createElement("li");
-        li.textContent = user;
+        if (user === username) {
+          li.textContent = `You: ${user}`;
+          li.style.color = "#00ff00"; // Green color for yourself
+        } else {
+          li.textContent = user;
+        }
         userList.appendChild(li);
       });
       updateSendUserSelect(users);
@@ -477,26 +551,43 @@
 
     // Handle receiving code from another user
     socket.on("receivedCode", function(data) {
-      const chat = document.getElementById("chat");
-      const messageElem = document.createElement("p");
-      messageElem.innerHTML = `<strong>${data.from}</strong> sent you code: <pre style="background:#111; padding:5px; border-radius:4px;">${data.code}</pre>`;
-      chat.appendChild(messageElem);
-      chat.scrollTop = chat.scrollHeight;
+      // Update the Received Code tab
+      document.getElementById("receivedCodeSender").textContent = `${data.from} sent you code`;
+      document.getElementById("receivedCodeContent").textContent = data.code;
+      // Automatically switch to Received Code tab
+      document.getElementById("tabCode").classList.remove("active");
+      document.getElementById("tabOutput").classList.remove("active");
+      document.getElementById("tabReceivedCode").classList.add("active");
+      document.getElementById("codeTab").style.display = "none";
+      document.getElementById("outputTab").style.display = "none";
+      document.getElementById("receivedCodeTab").style.display = "block";
     });
 
-    // Tab switching for Code and Output
+    // Tab switching for Code, Output, and Received Code
     document.getElementById("tabCode").addEventListener("click", () => {
       document.getElementById("tabCode").classList.add("active");
       document.getElementById("tabOutput").classList.remove("active");
+      document.getElementById("tabReceivedCode").classList.remove("active");
       document.getElementById("codeTab").style.display = "block";
       document.getElementById("outputTab").style.display = "none";
+      document.getElementById("receivedCodeTab").style.display = "none";
       editor.refresh(); // Refresh CodeMirror when switching back to code
     });
     document.getElementById("tabOutput").addEventListener("click", () => {
       document.getElementById("tabOutput").classList.add("active");
       document.getElementById("tabCode").classList.remove("active");
+      document.getElementById("tabReceivedCode").classList.remove("active");
       document.getElementById("codeTab").style.display = "none";
       document.getElementById("outputTab").style.display = "block";
+      document.getElementById("receivedCodeTab").style.display = "none";
+    });
+    document.getElementById("tabReceivedCode").addEventListener("click", () => {
+      document.getElementById("tabReceivedCode").classList.add("active");
+      document.getElementById("tabCode").classList.remove("active");
+      document.getElementById("tabOutput").classList.remove("active");
+      document.getElementById("codeTab").style.display = "none";
+      document.getElementById("outputTab").style.display = "none";
+      document.getElementById("receivedCodeTab").style.display = "block";
     });
 
     // Send chat message
@@ -535,6 +626,20 @@
       p.textContent = `${data.username}: ${data.message}`;
       chat.appendChild(p);
       chat.scrollTop = chat.scrollHeight;
+    });
+
+    // Copy button functionality for Received Code tab
+    document.getElementById("copyReceivedCodeButton").addEventListener("click", function() {
+      const code = document.getElementById("receivedCodeContent").textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        const notification = document.getElementById("copyNotification");
+        notification.style.opacity = 1;
+        setTimeout(() => {
+          notification.style.opacity = 0;
+        }, 1500);
+      }).catch(err => {
+        console.error("Failed to copy code", err);
+      });
     });
   </script>
 </body>
