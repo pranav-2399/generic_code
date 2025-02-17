@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Live Code Collaboration</title>
+  
+  <!-- Socket.io client script -->
+  <script src="/socket.io/socket.io.js"></script>
+  
+  <!-- CodeMirror Core CSS/JS -->
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/codemirror.min.css"
+  />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/codemirror.min.js"></script>
+  
+  <!-- CodeMirror Language Mode for C (or C++) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/mode/clike/clike.min.js"></script>
+
+  <!-- CodeMirror Monokai Theme (dark theme) -->
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/theme/monokai.min.css"
+  />
+
+  <style>
+    /* 
+      GLOBAL STYLES 
+    */
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      /* Dark gradient background */
+      background: linear-gradient(120deg, #141E30, #243B55);
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    h1 {
+      text-align: center;
+      margin: 20px 0 10px 0;
+      font-weight: normal;
+    }
+
+    /* 
+      USERNAME SECTION 
+    */
+    #usernameContainer {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    #usernameInput {
+      padding: 10px;
+      width: 220px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      outline: none;
+      margin-right: 8px;
+    }
+
+    button {
+      padding: 10px 16px;
+      cursor: pointer;
+      border-radius: 4px;
+      border: none;
+      background: #4CAF50;
+      color: #fff;
+      font-size: 14px;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background: #45a049;
+    }
+
+    /*
+      MAIN CONTAINER 
+      (Editor + Sidebar)
+    */
+    #container {
+      display: none; /* hidden until user joins */
+      flex: 1;       /* fill remaining space */
+      padding: 10px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      max-width: 1400px;  /* optional max width */
+      margin: 0 auto;     /* center horizontally if narrower than screen */
+      gap: 10px;          /* space between editor and sidebar */
+    }
+
+    /*
+      EDITOR CONTAINER
+    */
+    #editorContainer {
+      flex: 1; 
+      display: flex;
+      flex-direction: column;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+      background: #2D2D2D; /* behind CodeMirror if it doesn't fill all space */
+    }
+
+    #editor {
+      /* The <textarea> that CodeMirror will replace */
+      flex: 1;
+    }
+
+    /* CodeMirror instance */
+    .CodeMirror {
+      height: 100% !important;
+      font-size: 16px;        /* Larger font for readability */
+      background: #2D2D2D;    /* Monokai is dark; ensure background is consistent */
+    }
+    .CodeMirror-lines {
+      padding: 10px 0;        /* some extra spacing at top and bottom */
+    }
+
+    /*
+      SIDEBAR 
+      (User list + Chat)
+    */
+    #sidebar {
+      width: 350px;
+      min-width: 300px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 10px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+      display: flex;
+      flex-direction: column;
+    }
+
+    #sidebar h3 {
+      margin: 10px 0 5px 0;
+      font-weight: normal;
+    }
+
+    /* User list */
+    #users {
+      font-size: 14px;
+      list-style-type: none;
+      padding: 0;
+      margin: 0;
+      margin-bottom: 10px;
+    }
+
+    #users li {
+      margin: 2px 0;
+    }
+
+    /* Chat section */
+    #chat {
+      flex: 1;                 /* fill vertical space in the sidebar */
+      overflow-y: auto;
+      background: rgba(255,255,255,0.2);
+      padding: 10px;
+      border-radius: 4px;
+      color: #fff;
+    }
+
+    /* Chat messages spacing */
+    #chat p {
+      margin: 5px 0;
+    }
+
+    /* Message input area */
+    #messageContainer {
+      display: flex;
+      margin-top: 10px;
+    }
+
+    #messageInput {
+      flex: 1;
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      outline: none;
+      margin-right: 8px;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+  <h1>Live Code Editor</h1>
+
+  <!-- Username Input -->
+  <div id="usernameContainer">
+    <input type="text" id="usernameInput" placeholder="Enter your name" />
+    <button onclick="joinEditor()">Join</button>
+  </div>
+
+  <!-- Main Editor and Chat -->
+  <div id="container">
+    <!-- Left side: single code editor -->
+    <div id="editorContainer">
+      <textarea id="editor"></textarea>
+    </div>
+
+    <!-- Right side: user list + chat -->
+    <div id="sidebar">
+      <h3>Online Users</h3>
+      <ul id="users"></ul>
+
+      <h3>Chat</h3>
+      <div id="chat"></div>
+      <div id="messageContainer">
+        <input
+          id="messageInput"
+          type="text"
+          placeholder="Type a message"
+        />
+        <button onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Initialize socket
+    const socket = io();
+    let username = "";
+
+    // Join the editor with a username
+    function joinEditor() {
+      username = document.getElementById("usernameInput").value.trim();
+      if (username) {
+        socket.emit("setUsername", username);
+        document.getElementById("usernameContainer").style.display = "none";
+        document.getElementById("container").style.display = "flex";
+      }
+    }
+
+    // Create CodeMirror editor
+    const codeMirrorEditor = CodeMirror.fromTextArea(document.getElementById("editor"), {
+      mode: "text/x-csrc",   // or "text/x-c++src", "javascript", etc.
+      lineNumbers: true,
+      theme: "monokai",      // Use monokai theme
+      tabSize: 4,
+      indentUnit: 4,
+      smartIndent: true
+    });
+
+    // Send code updates to the server
+    codeMirrorEditor.on("change", (instance) => {
+      socket.emit("codeUpdate", instance.getValue());
+    });
+
+    // Receive code updates from others
+    socket.on("updateCode", (code) => {
+      if (codeMirrorEditor.getValue() !== code) {
+        codeMirrorEditor.setValue(code);
+      }
+    });
+
+    // Update user list when a new user joins or someone leaves
+    socket.on("updateUsers", (users) => {
+      const usersList = document.getElementById("users");
+      usersList.innerHTML = users.map((user) => `<li>${user}</li>`).join("");
+    });
+
+    // Send chat messages
+    function sendMessage() {
+      const msg = document.getElementById("messageInput").value.trim();
+      if (msg) {
+        socket.emit("chatMessage", msg);
+        document.getElementById("messageInput").value = "";
+      }
+    }
+
+    // Send message on Enter key
+    document.getElementById("messageInput").addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        sendMessage();
+      }
+    });
+
+    // Display incoming chat messages
+    socket.on("newMessage", (msg) => {
+      const chatBox = document.getElementById("chat");
+      const messageElement = document.createElement("p");
+      messageElement.innerHTML = msg;
+      chatBox.appendChild(messageElement);
+      chatBox.scrollTop = chatBox.scrollHeight; // Scroll to the latest message
+    });
+  </script>
+</body>
+</html>
