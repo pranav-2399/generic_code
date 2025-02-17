@@ -7,14 +7,14 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-let sharedCode = "";  // We'll store the single editor's code here
+let sharedCode = ""; // Store the editor's code
 let users = [];
 
-// When a new client connects
+// Socket.IO connection handling
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
-  // Set the username for the socket
+  // When a client sets its username
   socket.on("setUsername", (username) => {
     console.log("Username set:", username);
     socket.username = username;
@@ -22,42 +22,39 @@ io.on("connection", (socket) => {
     io.emit("updateUsers", users);
   });
 
-  // Listen for code updates
+  // Receive code updates and broadcast to others
   socket.on("codeUpdate", (code) => {
     console.log("Code updated:", code);
     sharedCode = code;
-    // Broadcast the code to all other connected clients (except the sender)
     socket.broadcast.emit("updateCode", code);
   });
 
-  // Listen for chat messages
+  // Receive chat messages and broadcast them
   socket.on("chatMessage", (msg) => {
     console.log(`Chat message from ${socket.username}: ${msg}`);
-    // Include the username in the message for display
     const messageToSend = `<strong>${socket.username}:</strong> ${msg}`;
-    // Emit to all clients (including sender)
     io.emit("newMessage", messageToSend);
   });
 
-  // When a user disconnects
+  // On disconnect, update the user list
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
     if (socket.username) {
-      users = users.filter((user) => user !== socket.username);
+      users = users.filter(user => user !== socket.username);
       io.emit("updateUsers", users);
     }
   });
 });
 
-// Serve static files from current directory
+// Serve static files from the current directory
 app.use(express.static(__dirname));
 
-// Serve the HTML file
+// Serve our main HTML file
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "Gcode.html"));
 });
 
-// Start the server
+// Start the server on port 3000
 server.listen(3000, () => {
   console.log("Server running on http://localhost:3000");
 });

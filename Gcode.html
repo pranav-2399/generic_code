@@ -9,123 +9,104 @@
   <script src="/socket.io/socket.io.js"></script>
   
   <!-- CodeMirror Core CSS/JS -->
-  <link
-    rel="stylesheet"
-    href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/codemirror.min.css"
-  />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/codemirror.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/codemirror.min.js"></script>
-  
-  <!-- CodeMirror Language Mode for C (or C++) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/mode/clike/clike.min.js"></script>
-
-  <!-- CodeMirror Monokai Theme (dark theme) -->
-  <link
-    rel="stylesheet"
-    href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/theme/monokai.min.css"
-  />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/theme/monokai.min.css" />
 
   <style>
-    /* 
-      GLOBAL STYLES 
-    */
+    /* Global Styles */
     body {
       margin: 0;
       padding: 0;
       font-family: Arial, sans-serif;
-      /* Dark gradient background */
       background: linear-gradient(120deg, #141E30, #243B55);
       color: #fff;
-      min-height: 100vh;
+      height: 100vh;
+      overflow: hidden;
+    }
+    /* Login Page Styles */
+    #loginPage {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(120deg, #141E30, #243B55);
       display: flex;
       flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
+      transition: opacity 0.5s ease;
     }
-
-    h1 {
-      text-align: center;
-      margin: 20px 0 10px 0;
+    #loginPage.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    #loginPage h1 {
+      margin-bottom: 20px;
       font-weight: normal;
     }
-
-    /* 
-      USERNAME SECTION 
-    */
-    #usernameContainer {
-      text-align: center;
-      margin-bottom: 20px;
-    }
-
-    #usernameInput {
+    #loginPage input {
       padding: 10px;
-      width: 220px;
+      width: 250px;
       border-radius: 4px;
       border: 1px solid #ccc;
       outline: none;
-      margin-right: 8px;
+      margin-bottom: 15px;
+      font-size: 16px;
     }
-
-    button {
-      padding: 10px 16px;
+    #loginPage button {
+      padding: 10px 20px;
       cursor: pointer;
       border-radius: 4px;
       border: none;
       background: #4CAF50;
       color: #fff;
-      font-size: 14px;
+      font-size: 16px;
       transition: background 0.3s;
     }
-    button:hover {
+    #loginPage button:hover {
       background: #45a049;
     }
-
-    /*
-      MAIN CONTAINER 
-      (Editor + Sidebar)
-    */
-    #container {
-      display: none; /* hidden until user joins */
-      flex: 1;       /* fill remaining space */
+    
+    /* Main Interface Styles */
+    #mainPage {
+      display: none;
+      height: 100%;
       padding: 10px;
       box-sizing: border-box;
       display: flex;
       flex-direction: row;
-      justify-content: space-between;
-      max-width: 1400px;  /* optional max width */
-      margin: 0 auto;     /* center horizontally if narrower than screen */
-      gap: 10px;          /* space between editor and sidebar */
+      gap: 10px;
     }
-
-    /*
-      EDITOR CONTAINER
-    */
+    /* Show mainPage once login is done */
+    #mainPage.visible {
+      display: flex;
+    }
+    /* Editor Container */
     #editorContainer {
-      flex: 1; 
+      flex: 1;
       display: flex;
       flex-direction: column;
       border-radius: 8px;
       overflow: hidden;
       box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-      background: #2D2D2D; /* behind CodeMirror if it doesn't fill all space */
+      background: #2D2D2D;
     }
-
     #editor {
-      /* The <textarea> that CodeMirror will replace */
       flex: 1;
     }
-
-    /* CodeMirror instance */
     .CodeMirror {
       height: 100% !important;
-      font-size: 16px;        /* Larger font for readability */
-      background: #2D2D2D;    /* Monokai is dark; ensure background is consistent */
+      font-size: 16px;
+      background: #2D2D2D;
     }
     .CodeMirror-lines {
-      padding: 10px 0;        /* some extra spacing at top and bottom */
+      padding: 10px 0;
     }
-
-    /*
-      SIDEBAR 
-      (User list + Chat)
-    */
+    /* Sidebar (User List + Chat) */
     #sidebar {
       width: 350px;
       min-width: 300px;
@@ -136,46 +117,34 @@
       display: flex;
       flex-direction: column;
     }
-
     #sidebar h3 {
       margin: 10px 0 5px 0;
       font-weight: normal;
     }
-
-    /* User list */
     #users {
       font-size: 14px;
-      list-style-type: none;
+      list-style: none;
       padding: 0;
-      margin: 0;
-      margin-bottom: 10px;
+      margin: 0 0 10px 0;
     }
-
     #users li {
       margin: 2px 0;
     }
-
-    /* Chat section */
     #chat {
-      flex: 1;                 /* fill vertical space in the sidebar */
+      flex: 1;
       overflow-y: auto;
       background: rgba(255,255,255,0.2);
       padding: 10px;
       border-radius: 4px;
       color: #fff;
     }
-
-    /* Chat messages spacing */
     #chat p {
       margin: 5px 0;
     }
-
-    /* Message input area */
     #messageContainer {
       display: flex;
       margin-top: 10px;
     }
-
     #messageInput {
       flex: 1;
       padding: 8px;
@@ -185,62 +154,72 @@
       margin-right: 8px;
       color: #333;
     }
+    #messageContainer button {
+      padding: 10px 16px;
+      cursor: pointer;
+      border-radius: 4px;
+      border: none;
+      background: #4CAF50;
+      color: #fff;
+      font-size: 14px;
+      transition: background 0.3s;
+    }
+    #messageContainer button:hover {
+      background: #45a049;
+    }
   </style>
 </head>
 <body>
-  <h1>Live Code Editor</h1>
-
-  <!-- Username Input -->
-  <div id="usernameContainer">
+  <!-- Login Page -->
+  <div id="loginPage">
+    <h1>Welcome to Live Code Editor</h1>
     <input type="text" id="usernameInput" placeholder="Enter your name" />
-    <button onclick="joinEditor()">Join</button>
+    <button onclick="join()">Join</button>
   </div>
 
-  <!-- Main Editor and Chat -->
-  <div id="container">
-    <!-- Left side: single code editor -->
+  <!-- Main Application -->
+  <div id="mainPage">
+    <!-- Left Side: Code Editor -->
     <div id="editorContainer">
       <textarea id="editor"></textarea>
     </div>
-
-    <!-- Right side: user list + chat -->
+    <!-- Right Side: Sidebar (User List & Chat) -->
     <div id="sidebar">
       <h3>Online Users</h3>
       <ul id="users"></ul>
-
       <h3>Chat</h3>
       <div id="chat"></div>
       <div id="messageContainer">
-        <input
-          id="messageInput"
-          type="text"
-          placeholder="Type a message"
-        />
+        <input id="messageInput" type="text" placeholder="Type a message" />
         <button onclick="sendMessage()">Send</button>
       </div>
     </div>
   </div>
 
   <script>
-    // Initialize socket
+    // Initialize Socket.IO
     const socket = io();
     let username = "";
 
-    // Join the editor with a username
-    function joinEditor() {
+    // Called when user clicks "Join" on login page
+    function join() {
       username = document.getElementById("usernameInput").value.trim();
       if (username) {
         socket.emit("setUsername", username);
-        document.getElementById("usernameContainer").style.display = "none";
-        document.getElementById("container").style.display = "flex";
+        // Fade out loginPage and show mainPage
+        document.getElementById("loginPage").classList.add("hidden");
+        setTimeout(() => {
+          document.getElementById("loginPage").style.display = "none";
+          document.getElementById("mainPage").classList.add("visible");
+        }, 500);
       }
     }
 
-    // Create CodeMirror editor
+    // Create CodeMirror editor for the code area
     const codeMirrorEditor = CodeMirror.fromTextArea(document.getElementById("editor"), {
-      mode: "text/x-csrc",   // or "text/x-c++src", "javascript", etc.
+      mode: "text/x-csrc",   // Change as needed (javascript, c++, etc.)
       lineNumbers: true,
-      theme: "monokai",      // Use monokai theme
+      theme: "monokai",
       tabSize: 4,
       indentUnit: 4,
       smartIndent: true
@@ -251,17 +230,17 @@
       socket.emit("codeUpdate", instance.getValue());
     });
 
-    // Receive code updates from others
+    // Receive code updates from other clients
     socket.on("updateCode", (code) => {
       if (codeMirrorEditor.getValue() !== code) {
         codeMirrorEditor.setValue(code);
       }
     });
 
-    // Update user list when a new user joins or someone leaves
+    // Update online users list
     socket.on("updateUsers", (users) => {
       const usersList = document.getElementById("users");
-      usersList.innerHTML = users.map((user) => `<li>${user}</li>`).join("");
+      usersList.innerHTML = users.map(user => `<li>${user}</li>`).join("");
     });
 
     // Send chat messages
@@ -272,12 +251,8 @@
         document.getElementById("messageInput").value = "";
       }
     }
-
-    // Send message on Enter key
     document.getElementById("messageInput").addEventListener("keypress", (e) => {
-      if (e.key === "Enter") {
-        sendMessage();
-      }
+      if (e.key === "Enter") sendMessage();
     });
 
     // Display incoming chat messages
@@ -286,7 +261,7 @@
       const messageElement = document.createElement("p");
       messageElement.innerHTML = msg;
       chatBox.appendChild(messageElement);
-      chatBox.scrollTop = chatBox.scrollHeight; // Scroll to the latest message
+      chatBox.scrollTop = chatBox.scrollHeight;
     });
   </script>
 </body>
