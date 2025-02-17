@@ -36,6 +36,16 @@ io.on("connection", (socket) => {
     io.emit("newMessage", messageToSend);
   });
 
+  // AI Suggestion integration: receive code and return a dummy recommendation
+  socket.on("aiSuggest", (code) => {
+    console.log("AI suggestion requested for code length:", code.length);
+    // Simulate processing delay and then send back a suggestion
+    setTimeout(() => {
+      const suggestion = "\n// AI Suggestion: Consider using arrow functions for a more concise syntax.\n";
+      socket.emit("aiSuggestionResult", suggestion);
+    }, 1000);
+  });
+
   // On disconnect, update the user list
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);

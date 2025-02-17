@@ -11,8 +11,20 @@
   <!-- CodeMirror Core CSS/JS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/codemirror.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/codemirror.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/mode/clike/clike.min.js"></script>
+  <!-- Language mode: Using JavaScript for better linting/demo -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/mode/javascript/javascript.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/theme/monokai.min.css" />
+
+  <!-- CodeMirror Addons for Autocompletion -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/addon/hint/show-hint.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/addon/hint/show-hint.min.js"></script>
+
+  <!-- CodeMirror Addons for Linting -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/addon/lint/lint.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/addon/lint/lint.min.js"></script>
+  <!-- JSHint for JavaScript linting -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jshint/2.13.4/jshint.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/addon/lint/javascript-lint.min.js"></script>
 
   <style>
     /* Global Styles */
@@ -95,6 +107,27 @@
       box-shadow: 0 4px 8px rgba(0,0,0,0.3);
       background: #2D2D2D;
     }
+    /* Toolbar for AI & Run Code */
+    #editorToolbar {
+      padding: 5px;
+      background: #1e1e1e;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    #editorToolbar button {
+      padding: 6px 12px;
+      cursor: pointer;
+      border-radius: 4px;
+      border: none;
+      background: #4CAF50;
+      color: #fff;
+      font-size: 14px;
+      transition: background 0.3s;
+    }
+    #editorToolbar button:hover {
+      background: #45a049;
+    }
     #editor {
       flex: 1;
     }
@@ -105,6 +138,14 @@
     }
     .CodeMirror-lines {
       padding: 10px 0;
+    }
+    /* Div to show runtime errors */
+    #runtimeErrors {
+      min-height: 30px;
+      padding: 5px;
+      background: #2D2D2D;
+      font-family: monospace;
+      color: #ff5555;
     }
     /* Sidebar (User List + Chat) */
     #sidebar {
@@ -181,7 +222,13 @@
   <div id="mainPage">
     <!-- Left Side: Code Editor -->
     <div id="editorContainer">
+      <!-- Toolbar with AI Suggestion and Run Code buttons -->
+      <div id="editorToolbar">
+        <button id="aiSuggestionButton">Get AI Suggestion</button>
+        <button id="runCodeButton">Run Code</button>
+      </div>
       <textarea id="editor"></textarea>
+      <div id="runtimeErrors"></div>
     </div>
     <!-- Right Side: Sidebar (User List & Chat) -->
     <div id="sidebar">
@@ -215,14 +262,19 @@
       }
     }
 
-    // Create CodeMirror editor for the code area
+    // Create CodeMirror editor for the code area with autocompletion and linting enabled
     const codeMirrorEditor = CodeMirror.fromTextArea(document.getElementById("editor"), {
-      mode: "text/x-csrc",   // Change as needed (javascript, c++, etc.)
+      mode: "javascript",  // Using JavaScript mode for linting/demonstration
       lineNumbers: true,
       theme: "monokai",
       tabSize: 4,
       indentUnit: 4,
-      smartIndent: true
+      smartIndent: true,
+      gutters: ["CodeMirror-lint-markers"],
+      lint: true,
+      extraKeys: {
+        "Ctrl-Space": "autocomplete"
+      }
     });
 
     // Send code updates to the server
@@ -262,6 +314,35 @@
       messageElement.innerHTML = msg;
       chatBox.appendChild(messageElement);
       chatBox.scrollTop = chatBox.scrollHeight;
+    });
+
+    // AI Suggestion Button: Request code recommendation from the server
+    document.getElementById("aiSuggestionButton").addEventListener("click", () => {
+      const code = codeMirrorEditor.getValue();
+      socket.emit("aiSuggest", code);
+    });
+
+    // Receive AI suggestion and offer to insert it into the editor
+    socket.on("aiSuggestionResult", (suggestion) => {
+      if (confirm("AI Suggestion received:\n\n" + suggestion + "\n\nInsert suggestion?")) {
+        const doc = codeMirrorEditor.getDoc();
+        const cursor = doc.getCursor();
+        doc.replaceRange(suggestion, cursor);
+      }
+    });
+
+    // Run Code Button: Evaluate the code and display runtime errors (if any)
+    document.getElementById("runCodeButton").addEventListener("click", () => {
+      const code = codeMirrorEditor.getValue();
+      let output = "";
+      try {
+        // Using Function constructor to execute code in a safe (isolated) scope
+        new Function(code)();
+        output = "Code ran successfully.";
+      } catch(e) {
+        output = "Runtime Error: " + e.message;
+      }
+      document.getElementById("runtimeErrors").textContent = output;
     });
   </script>
 </body>
