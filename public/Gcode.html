@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Live Code Collaboration</title>
+  
+  <!-- Google Fonts: Roboto Mono -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono&display=swap" rel="stylesheet">
+
+  <!-- Socket.io client script -->
+  <script src="/socket.io/socket.io.js"></script>
+  
+  <!-- CodeMirror Core CSS/JS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/codemirror.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/codemirror.min.js"></script>
+  
+  <!-- Language modes: JavaScript, Python, C (via clike) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/mode/javascript/javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/mode/python/python.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/mode/clike/clike.min.js"></script>
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/theme/monokai.min.css" />
+
+  <!-- CodeMirror Addons for Autocompletion -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/addon/hint/show-hint.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/addon/hint/show-hint.min.js"></script>
+
+  <!-- CodeMirror Addons for Linting -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/addon/lint/lint.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/addon/lint/lint.min.js"></script>
+  <!-- JSHint for JavaScript linting -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jshint/2.13.4/jshint.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.0/addon/lint/javascript-lint.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  
+  <style>
+    /* Global Styles using black & white and Roboto Mono for text */
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Roboto Mono', monospace;
+      background: #000;
+      color: #fff;
+      height: 100vh;
+      overflow: hidden;
+    }
+    /* Login Page Styles */
+    #loginPage {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
+      transition: opacity 0.5s ease;
+    }
+    #loginPage.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    #loginPage h1 {
+      margin-bottom: 20px;
+      font-weight: normal;
+    }
+    #loginPage input {
+      padding: 10px;
+      width: 250px;
+      border-radius: 4px;
+      border: 1px solid #fff;
+      outline: none;
+      margin-bottom: 15px;
+      font-size: 16px;
+      background: #000;
+      color: #fff;
+    }
+    #loginPage button {
+      padding: 10px 20px;
+      cursor: pointer;
+      border-radius: 4px;
+      border: none;
+      background: #fff;
+      color: #000;
+      font-size: 16px;
+      transition: background 0.3s;
+    }
+    #loginPage button:hover {
+      background: #ccc;
+    }
+    /* Main Interface Styles */
+    #mainPage {
+      display: none;
+      height: 100%;
+      padding: 10px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: row;
+      gap: 10px;
+    }
+    #mainPage.visible {
+      display: flex;
+    }
+    /* Editor Container */
+    #editorContainer {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 8px rgba(255,255,255,0.3);
+      background: #111;
+      position: relative;
+    }
+    /* Toolbar for Language selection, AI, and Run Code */
+    #editorToolbar {
+      padding: 5px;
+      background: #222;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    #editorToolbar button,
+    #editorToolbar select {
+      padding: 6px 12px;
+      cursor: pointer;
+      border-radius: 4px;
+      border: none;
+      font-size: 14px;
+      background: #fff;
+      color: #000;
+    }
+    #editorToolbar button:hover {
+      background: #ccc;
+    }
+    /* Tab Header for switching between Code and Output */
+    #tabHeader {
+      display: flex;
+      border-bottom: 1px solid #fff;
+    }
+    #tabHeader button {
+      flex: 1;
+      padding: 10px;
+      background: #222;
+      border: none;
+      color: #fff;
+      font-family: 'Roboto Mono', monospace;
+      cursor: pointer;
+    }
+    #tabHeader button.active {
+      background: #fff;
+      color: #000;
+    }
+    /* Tab Content */
+    #tabContent {
+      position: relative;
+      flex: 1;
+      overflow: hidden;
+    }
+    #codeTab, #outputTab {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+    }
+    /* CodeMirror Editor Styles Override */
+    .CodeMirror {
+      height: 100% !important;
+      font-size: 16px;
+      background: #111;
+      font-family: Consolas, "Courier New", monospace;
+    }
+    .CodeMirror-lines {
+      padding: 10px 0;
+    }
+    /* Output Section Styles */
+    #outputSection {
+      padding: 10px;
+      background: #000;
+      font-family: 'Roboto Mono', monospace;
+      font-size: 14px;
+      overflow-y: auto;
+      height: 100%;
+    }
+    /* Sidebar (User List + Chat) */
+    #sidebar {
+      width: 350px;
+      min-width: 300px;
+      background: #000;
+      border-radius: 8px;
+      padding: 10px;
+      box-shadow: 0 4px 8px rgba(255,255,255,0.3);
+      display: flex;
+      flex-direction: column;
+    }
+    #sidebar h3 {
+      margin: 10px 0 5px 0;
+      font-weight: normal;
+    }
+    #users {
+      font-size: 14px;
+      list-style: none;
+      padding: 0;
+      margin: 0 0 10px 0;
+    }
+    #users li {
+      margin: 2px 0;
+    }
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      background: #111;
+      padding: 10px;
+      border-radius: 4px;
+      color: #fff;
+    }
+    #chat p {
+      margin: 5px 0;
+    }
+    #messageContainer {
+      display: flex;
+      margin-top: 10px;
+    }
+    #messageInput {
+      flex: 1;
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #fff;
+      outline: none;
+      margin-right: 8px;
+      color: #000;
+      background: #fff;
+    }
+    #messageContainer button {
+      padding: 10px 16px;
+      cursor: pointer;
+      border-radius: 4px;
+      border: none;
+      background: #fff;
+      color: #000;
+      font-size: 14px;
+      transition: background 0.3s;
+    }
+    #messageContainer button:hover {
+      background: #ccc;
+    }
+  </style>
+</head>
+<body>
+  <!-- Login Page -->
+  <div id="loginPage">
+    <h1>Live Code Editor</h1>
+    <input type="text" id="usernameInput" placeholder="Enter your name" />
+    <button onclick="join()">Join</button>
+  </div>
+
+  <!-- Main Application -->
+  <div id="mainPage">
+    <!-- Left Side: Editor Container with Tabs -->
+    <div id="editorContainer">
+      <!-- Toolbar with Language selection, AI Suggestion, Code Correction, and Run Code buttons -->
+      <div id="editorToolbar">
+        <select id="languageSelect">
+          <option value="javascript">JavaScript</option>
+          <option value="python">Python</option>
+          <option value="c">C</option>
+        </select>
+        <button id="aiSuggestionButton">Get AI Suggestion</button>
+        <button id="aiCorrectionButton">Code Correction</button>
+        <button id="runCodeButton">Run Code</button>
+      </div>
+      <!-- Tab Header -->
+      <div id="tabHeader">
+        <button id="tabCode" class="active">Code</button>
+        <button id="tabOutput">Output</button>
+      </div>
+      <!-- Tab Content -->
+      <div id="tabContent">
+        <div id="codeTab">
+          <textarea id="editor"></textarea>
+        </div>
+        <div id="outputTab" style="display: none;">
+          <div id="outputSection"></div>
+        </div>
+      </div>
+    </div>
+    <!-- Right Side: Sidebar (User List & Chat) -->
+    <div id="sidebar">
+      <h3>Online Users</h3>
+      <ul id="users"></ul>
+      <h3>Chat</h3>
+      <div id="chat"></div>
+      <div id="messageContainer">
+        <input id="messageInput" type="text" placeholder="Type a message" />
+        <button onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Initialize Socket.IO
+    const socket = io();
+    let username = "";
+
+    // Called when user clicks "Join"
+    function join() {
+      username = document.getElementById("usernameInput").value.trim();
+      if (username) {
+        socket.emit("setUsername", username);
+        document.getElementById("loginPage").classList.add("hidden");
+        setTimeout(() => {
+          document.getElementById("loginPage").style.display = "none";
+          document.getElementById("mainPage").classList.add("visible");
+        }, 500);
+      }
+    }
+
+    // Update CodeMirror mode when language selection changes
+    const languageSelect = document.getElementById("languageSelect");
+    languageSelect.addEventListener("change", function() {
+      const lang = languageSelect.value;
+      if (lang === "javascript") {
+        editor.setOption("mode", "javascript");
+      } else if (lang === "python") {
+        editor.setOption("mode", "python");
+      } else if (lang === "c") {
+        editor.setOption("mode", "text/x-csrc");
+      }
+    });
+
+    // AI Suggestion button click
+    document.getElementById("aiSuggestionButton").addEventListener("click", function() {
+      const code = editor.getValue();
+      const language = languageSelect.value;
+      socket.emit("aiSuggestion", { code, language });
+    });
+
+    // Code Correction button click
+    document.getElementById("aiCorrectionButton").addEventListener("click", function() {
+      const code = editor.getValue();
+      const language = languageSelect.value;
+      socket.emit("aiCorrection", { code, language });
+    });
+
+    // Run Code button click
+    document.getElementById("runCodeButton").addEventListener("click", function() {
+      const code = editor.getValue();
+      const language = languageSelect.value;
+      socket.emit("runCode", { code, language });
+    });
+
+    // Tab switching for Code and Output
+    document.getElementById("tabCode").addEventListener("click", () => {
+      document.getElementById("tabCode").classList.add("active");
+      document.getElementById("tabOutput").classList.remove("active");
+      document.getElementById("codeTab").style.display = "block";
+      document.getElementById("outputTab").style.display = "none";
+      editor.refresh(); // Refresh CodeMirror when switching back to code
+    });
+    document.getElementById("tabOutput").addEventListener("click", () => {
+      document.getElementById("tabOutput").classList.add("active");
+      document.getElementById("tabCode").classList.remove("active");
+      document.getElementById("codeTab").style.display = "none";
+      document.getElementById("outputTab").style.display = "block";
+    });
+
+    // Send chat message
+    function sendMessage() {
+      const message = document.getElementById("messageInput").value.trim();
+      if (message) {
+        socket.emit("sendMessage", { username, message });
+        document.getElementById("messageInput").value = "";
+      }
+    }
+
+    // Update user list
+    socket.on("userList", function(users) {
+      const userList = document.getElementById("users");
+      userList.innerHTML = "";
+      users.forEach(function(user) {
+        const li = document.createElement("li");
+        li.textContent = user;
+        userList.appendChild(li);
+      });
+    });
+
+    // Display AI suggestion
+    socket.on("aiSuggestion", function(suggestion) {
+      alert("AI Suggestion: " + suggestion);
+    });
+
+    // Display AI-corrected code and update editor
+    socket.on("aiCorrection", function(correctedCode) {
+      editor.setValue(correctedCode);
+      alert("Code corrected and updated in editor.");
+    });
+
+    // Display runtime output/errors in the output section
+    socket.on("runtimeErrors", function(output) {
+      document.getElementById("outputSection").innerHTML = output || "No output.";
+    });
+
+    // Display chat messages
+    socket.on("chatMessage", function(data) {
+      const chat = document.getElementById("chat");
+      const p = document.createElement("p");
+      p.textContent = `${data.username}: ${data.message}`;
+      chat.appendChild(p);
+      chat.scrollTop = chat.scrollHeight;
+    });
+
+    // Initialize CodeMirror editor
+    const editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
+      mode: "javascript",
+      theme: "monokai",
+      lineNumbers: true,
+      gutters: ["CodeMirror-lint-markers"],
+      lint: true,
+    });
+  </script>
+</body>
+</html>
