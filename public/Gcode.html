@@ -72,7 +72,7 @@
       padding: 10px;
       width: 250px;
       border-radius: 4px;
-      border: 1px solid #fff;
+      border: 1px solid #444;
       outline: none;
       margin-bottom: 15px;
       font-size: 16px;
@@ -84,13 +84,13 @@
       cursor: pointer;
       border-radius: 4px;
       border: none;
-      background: #fff;
-      color: #000;
+      background: #333;
+      color: #fff;
       font-size: 16px;
       transition: background 0.3s;
     }
     #loginPage button:hover {
-      background: #ccc;
+      background: #555;
     }
     /* Main Interface Styles */
     #mainPage {
@@ -131,16 +131,34 @@
       border-radius: 4px;
       border: none;
       font-size: 14px;
-      background: #fff;
-      color: #000;
+      background: #333;
+      color: #fff;
+      transition: background 0.3s;
     }
-    #editorToolbar button:hover {
-      background: #ccc;
+    #editorToolbar button:hover,
+    #editorToolbar select:hover {
+      background: #444;
+    }
+    /* Input Container for runtime inputs */
+    #inputContainer {
+      padding: 5px;
+      background: #222;
+    }
+    #inputField {
+      width: 100%;
+      height: 50px;
+      background: #111;
+      color: #fff;
+      border: 1px solid #444;
+      border-radius: 4px;
+      padding: 5px;
+      font-family: 'Roboto Mono', monospace;
+      font-size: 14px;
     }
     /* Tab Header for switching between Code and Output */
     #tabHeader {
       display: flex;
-      border-bottom: 1px solid #fff;
+      border-bottom: 1px solid #444;
     }
     #tabHeader button {
       flex: 1;
@@ -150,10 +168,11 @@
       color: #fff;
       font-family: 'Roboto Mono', monospace;
       cursor: pointer;
+      transition: background 0.3s;
     }
     #tabHeader button.active {
-      background: #fff;
-      color: #000;
+      background: #333;
+      color: #fff;
     }
     /* Tab Content */
     #tabContent {
@@ -230,7 +249,7 @@
       flex: 1;
       padding: 8px;
       border-radius: 4px;
-      border: 1px solid #fff;
+      border: 1px solid #444;
       outline: none;
       margin-right: 8px;
       color: #000;
@@ -241,13 +260,13 @@
       cursor: pointer;
       border-radius: 4px;
       border: none;
-      background: #fff;
-      color: #000;
+      background: #333;
+      color: #fff;
       font-size: 14px;
       transition: background 0.3s;
     }
     #messageContainer button:hover {
-      background: #ccc;
+      background: #555;
     }
   </style>
 </head>
@@ -274,6 +293,12 @@
         <button id="aiCorrectionButton">Code Correction</button>
         <button id="runCodeButton">Run Code</button>
       </div>
+      
+      <!-- Input Field for Runtime Inputs -->
+      <div id="inputContainer">
+        <textarea id="inputField" placeholder="Enter input data here"></textarea>
+      </div>
+      
       <!-- Tab Header -->
       <div id="tabHeader">
         <button id="tabCode" class="active">Code</button>
@@ -320,6 +345,15 @@
       }
     }
 
+    // Initialize CodeMirror editor before using it in event listeners
+    const editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
+      mode: "javascript",
+      theme: "monokai",
+      lineNumbers: true,
+      gutters: ["CodeMirror-lint-markers"],
+      lint: true,
+    });
+
     // Update CodeMirror mode when language selection changes
     const languageSelect = document.getElementById("languageSelect");
     languageSelect.addEventListener("change", function() {
@@ -347,11 +381,12 @@
       socket.emit("aiCorrection", { code, language });
     });
 
-    // Run Code button click
+    // Run Code button click with input support
     document.getElementById("runCodeButton").addEventListener("click", function() {
       const code = editor.getValue();
       const language = languageSelect.value;
-      socket.emit("runCode", { code, language });
+      const input = document.getElementById("inputField").value;
+      socket.emit("runCode", { code, language, input });
     });
 
     // Tab switching for Code and Output
@@ -391,13 +426,17 @@
 
     // Display AI suggestion
     socket.on("aiSuggestion", function(suggestion) {
-      alert("AI Suggestion: " + suggestion);
+      alert(suggestion ? "AI Suggestion: " + suggestion : "No suggestion received.");
     });
 
     // Display AI-corrected code and update editor
     socket.on("aiCorrection", function(correctedCode) {
-      editor.setValue(correctedCode);
-      alert("Code corrected and updated in editor.");
+      if (correctedCode && correctedCode !== "Failed to get AI correction") {
+        editor.setValue(correctedCode);
+        alert("Code corrected and updated in editor.");
+      } else {
+        alert("AI Correction failed. Please check your API key or try again.");
+      }
     });
 
     // Display runtime output/errors in the output section
@@ -412,15 +451,6 @@
       p.textContent = `${data.username}: ${data.message}`;
       chat.appendChild(p);
       chat.scrollTop = chat.scrollHeight;
-    });
-
-    // Initialize CodeMirror editor
-    const editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
-      mode: "javascript",
-      theme: "monokai",
-      lineNumbers: true,
-      gutters: ["CodeMirror-lint-markers"],
-      lint: true,
     });
   </script>
 </body>
