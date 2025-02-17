@@ -173,6 +173,18 @@ io.on('connection', (socket) => {
     }
   });
 
+  // NEW: Handler for sending code to specific users
+  socket.on('sendCode', (data) => {
+    const { code, recipients } = data;
+    const sender = socket.username || "Anonymous";
+    // Iterate over all connected sockets and send code to those whose username is in recipients
+    for (const [id, s] of io.of("/").sockets) {
+      if (recipients.includes(s.username)) {
+        s.emit("receivedCode", { from: sender, code });
+      }
+    }
+  });
+
   socket.on('disconnect', () => {
     console.log('A user disconnected');
     if (socket.username) {

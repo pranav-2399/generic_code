@@ -116,13 +116,14 @@
       background: #111;
       position: relative;
     }
-    /* Toolbar for Language selection, AI, and Run Code */
+    /* Toolbar for Language selection, AI, Run Code, and Send Code */
     #editorToolbar {
       padding: 5px;
       background: #222;
       display: flex;
       gap: 10px;
       align-items: center;
+      position: relative;
     }
     #editorToolbar button,
     #editorToolbar select {
@@ -137,6 +138,38 @@
     }
     #editorToolbar button:hover,
     #editorToolbar select:hover {
+      background: #444;
+    }
+    /* NEW: Styles for the Send Code container */
+    #sendCodeContainer {
+      position: absolute;
+      top: 40px; /* Adjust as needed */
+      right: 10px;
+      background: #222;
+      border: 1px solid #444;
+      padding: 10px;
+      border-radius: 4px;
+      display: none;
+      z-index: 20;
+    }
+    #sendCodeContainer select {
+      width: 200px;
+      height: 100px;
+      background: #111;
+      color: #fff;
+      border: 1px solid #444;
+    }
+    #sendCodeContainer button {
+      margin-top: 10px;
+      padding: 6px 12px;
+      border-radius: 4px;
+      border: none;
+      background: #333;
+      color: #fff;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    #sendCodeContainer button:hover {
       background: #444;
     }
     /* Input Container for runtime inputs */
@@ -282,7 +315,7 @@
   <div id="mainPage">
     <!-- Left Side: Editor Container with Tabs -->
     <div id="editorContainer">
-      <!-- Toolbar with Language selection, AI Suggestion, Code Correction, and Run Code buttons -->
+      <!-- Toolbar with Language selection, AI Suggestion, Code Correction, Run Code, and Send Code buttons -->
       <div id="editorToolbar">
         <select id="languageSelect">
           <option value="javascript">JavaScript</option>
@@ -292,6 +325,12 @@
         <button id="aiSuggestionButton">Get AI Suggestion</button>
         <button id="aiCorrectionButton">Code Correction</button>
         <button id="runCodeButton">Run Code</button>
+        <button id="sendCodeButton">Send Code</button>
+        <!-- Container for selecting recipients -->
+        <div id="sendCodeContainer">
+          <select id="sendUserSelect" multiple></select>
+          <button id="confirmSendCodeButton">Send</button>
+        </div>
       </div>
       
       <!-- Input Field for Runtime Inputs -->
@@ -310,7 +349,7 @@
           <textarea id="editor"></textarea>
         </div>
         <div id="outputTab" style="display: none;">
-          <div id="outputSection"></div>
+          <pre id="outputSection"></pre>
         </div>
       </div>
     </div>
@@ -389,6 +428,62 @@
       socket.emit("runCode", { code, language, input });
     });
 
+    // Toggle the display of the Send Code container
+    document.getElementById("sendCodeButton").addEventListener("click", function() {
+      const container = document.getElementById("sendCodeContainer");
+      container.style.display = (container.style.display === "none" || container.style.display === "") ? "block" : "none";
+    });
+
+    // When the confirm button is clicked, send the current code to selected recipients
+    document.getElementById("confirmSendCodeButton").addEventListener("click", function() {
+      const selectElem = document.getElementById("sendUserSelect");
+      const selectedOptions = Array.from(selectElem.selectedOptions);
+      const recipients = selectedOptions.map(option => option.value);
+      if (recipients.length === 0) {
+        alert("Please select at least one user to send the code to.");
+        return;
+      }
+      const code = editor.getValue();
+      socket.emit("sendCode", { code, recipients });
+      // Hide the send code container after sending
+      document.getElementById("sendCodeContainer").style.display = "none";
+    });
+
+    // Update the multi-select options with the current online users (excluding yourself)
+    function updateSendUserSelect(users) {
+      const select = document.getElementById("sendUserSelect");
+      select.innerHTML = "";
+      users.forEach(user => {
+        if (user !== username) {
+          const option = document.createElement("option");
+          option.value = user;
+          option.textContent = user;
+          select.appendChild(option);
+        }
+      });
+    }
+
+    // Update user list and send code dropdown
+    socket.on("userList", function(users) {
+      const userList = document.getElementById("users");
+      userList.innerHTML = "";
+      users.forEach(function(user) {
+        const li = document.createElement("li");
+        li.textContent = user;
+        userList.appendChild(li);
+      });
+      updateSendUserSelect(users);
+    });
+
+    // Handle receiving code from another user
+    socket.on("receivedCode", function(data) {
+      const chat = document.getElementById("chat");
+      const messageElem = document.createElement("p");
+      messageElem.innerHTML = `<strong>${data.from}</strong> sent you code: <pre style="background:#111; padding:5px; border-radius:4px;">${data.code}</pre>`;
+      chat.appendChild(messageElem);
+      chat.scrollTop = chat.scrollHeight;
+    });
+
     // Tab switching for Code and Output
     document.getElementById("tabCode").addEventListener("click", () => {
       document.getElementById("tabCode").classList.add("active");
@@ -412,17 +507,6 @@
         document.getElementById("messageInput").value = "";
       }
     }
-
-    // Update user list
-    socket.on("userList", function(users) {
-      const userList = document.getElementById("users");
-      userList.innerHTML = "";
-      users.forEach(function(user) {
-        const li = document.createElement("li");
-        li.textContent = user;
-        userList.appendChild(li);
-      });
-    });
 
     // Display AI suggestion
     socket.on("aiSuggestion", function(suggestion) {
